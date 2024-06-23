@@ -1,98 +1,45 @@
 import 'package:blog_posts/model/blog_model.dart';
-import 'package:blog_posts/provider/fetch_post.dart';
+import 'package:blog_posts/provider/data_provider.dart';
 import 'package:blog_posts/screen/favorite.dart';
 import 'package:flutter/material.dart';
-import 'package:path/path.dart' as p;
-import 'package:sqflite/sqflite.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
-  final FetchPosts _fetchPostsInstance = FetchPosts();
-  late Database _database;
+class _HomeScreenState extends ConsumerState<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
-  List<Post> _posts = [];
   List<Post> _filteredPosts = [];
-  List<Post> _favoritePosts = [];
 
   @override
   void initState() {
     super.initState();
-    _openDatabase();
-    _fetchPosts();
+    final blogViewModel = ref.read(blogViewModelProvider);
+    blogViewModel.fetchPosts();
   }
 
-  Future<void> _openDatabase() async {
-    _database = await openDatabase(
-      p.join(await getDatabasesPath(), 'favorites_database.db'),
-      onCreate: (db, version) {
-        return db.execute(
-          'CREATE TABLE favorites(id INTEGER PRIMARY KEY, title TEXT, body TEXT)',
-        );
-      },
-      version: 1,
-    );
-
-    _fetchFavorites();
-  }
-
-  Future<void> _fetchPosts() async {
-    List<Post> posts = await _fetchPostsInstance.fetchPosts(context);
-    setState(() {
-      _posts = posts;
-      _filteredPosts = posts;
-    });
-  }
-
-  Future<void> _fetchFavorites() async {
-    final List<Map<String, dynamic>> favorites =
-        await _database.query('favorites');
-    setState(() {
-      _favoritePosts = favorites
-          .map((fav) => Post(
-                id: fav['id'],
-                title: fav['title'],
-                body: fav['body'],
-              ))
-          .toList();
-    });
-  }
-
-  void _toggleFavorite(Post post) async {
-    if (_isFavorite(post)) {
-      await _database
-          .delete('favorites', where: 'id = ?', whereArgs: [post.id]);
-      setState(() {
-        _favoritePosts.removeWhere((favPost) => favPost.id == post.id);
-      });
-    } else {
-      await _database.insert('favorites', post.toMap());
-      setState(() {
-        _favoritePosts.add(post);
-      });
-    }
-  }
-
-  bool _isFavorite(Post post) {
-    return _favoritePosts.any((favPost) => favPost.id == post.id);
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   void _filterPosts(String query) {
+    final blogViewModel = ref.read(blogViewModelProvider);
     setState(() {
-      _filteredPosts = _posts
-          .where(
-              (post) => post.title.toLowerCase().contains(query.toLowerCase()))
-          .toList();
+      _filteredPosts = blogViewModel.filterPosts(query);
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    final blogViewModel = ref.watch(blogViewModelProvider);
+    final blog = ref.watch(blogDataProvider);
+
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
@@ -106,12 +53,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   await Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => FavoriteScreen(
-                        database: _database,
-                      ),
+                      builder: (context) => const FavoriteScreen(),
                     ),
                   );
-                  _fetchFavorites();
+                  await blogViewModel.fetchFavorites();
                 },
                 icon: const Icon(Icons.favorite),
               ),
@@ -122,7 +67,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   backgroundColor: Colors.black,
                   radius: 10.0,
                   child: Text(
-                    _favoritePosts.length.toString(),
+                    blogViewModel.favoritePosts.length.toString(),
                     style: const TextStyle(color: Colors.white, fontSize: 10),
                   ),
                 ),
@@ -145,64 +90,70 @@ class _HomeScreenState extends State<HomeScreen> {
                   borderRadius: BorderRadius.circular(12.0),
                 ),
               ),
-              onChanged: (value) {
-                _filterPosts(value);
-              },
+              onChanged: _filterPosts,
             ),
           ),
-          Expanded(
-            child: _filteredPosts.isEmpty
-                ? const Center(child: CircularProgressIndicator())
-                : ListView.builder(
-                    itemCount: _filteredPosts.length,
-                    itemBuilder: (context, index) {
-                      final post = _filteredPosts[index];
-                      return Container(
-                        padding: const EdgeInsets.all(16),
-                        margin: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          border: Border.all(),
-                          borderRadius:
-                              const BorderRadius.all(Radius.circular(12)),
-                        ),
-                        child: ListTile(
-                          title: Text(
-                            post.title,
-                            textAlign: TextAlign.justify,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
+          blog.when(
+            data: (blogPosts) {
+              if (_filteredPosts.isEmpty) {
+                _filteredPosts = blogPosts;
+              }
+              return Expanded(
+                child: _filteredPosts.isEmpty
+                    ? const Center(child: CircularProgressIndicator())
+                    : ListView.builder(
+                        itemCount: _filteredPosts.length,
+                        itemBuilder: (context, index) {
+                          final post = _filteredPosts[index];
+                          return Container(
+                            padding: const EdgeInsets.all(16),
+                            margin: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              border: Border.all(),
+                              borderRadius:
+                                  const BorderRadius.all(Radius.circular(12)),
                             ),
-                          ),
-                          subtitle: Text(
-                            post.body,
-                            textAlign: TextAlign.justify,
-                            style: const TextStyle(fontSize: 14),
-                          ),
-                          trailing: IconButton(
-                            onPressed: () {
-                              _toggleFavorite(post);
-                            },
-                            icon: Icon(
-                              _isFavorite(post)
-                                  ? Icons.favorite
-                                  : Icons.favorite_border,
-                              color: _isFavorite(post) ? Colors.red : null,
+                            child: ListTile(
+                              title: Text(
+                                post.title,
+                                textAlign: TextAlign.justify,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              subtitle: Text(
+                                post.body,
+                                textAlign: TextAlign.justify,
+                                style: const TextStyle(fontSize: 14),
+                              ),
+                              trailing: IconButton(
+                                onPressed: () {
+                                  blogViewModel.toggleFavorite(post);
+                                },
+                                icon: Icon(
+                                  blogViewModel.favoritePosts.contains(post)
+                                      ? Icons.favorite
+                                      : Icons.favorite_border,
+                                  color:
+                                      blogViewModel.favoritePosts.contains(post)
+                                          ? Colors.red
+                                          : null,
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
+                          );
+                        },
+                      ),
+              );
+            },
+            error: (e, s) => Text(e.toString()),
+            loading: () => const Center(
+              child: CircularProgressIndicator(),
+            ),
           ),
         ],
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _database.close();
-    super.dispose();
   }
 }

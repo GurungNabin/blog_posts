@@ -1,19 +1,16 @@
-
 import 'package:blog_posts/model/blog_model.dart';
 import 'package:blog_posts/repository/api.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 class FetchPosts {
-  final ApiProvider _apiProvider = ApiProvider();
+  final ApiProvider apiProvider;
+
+  FetchPosts({required this.apiProvider});
 
   Future<List<Post>> fetchPosts(BuildContext context) async {
     try {
-      return await _apiProvider.fetchPosts();
+      return await apiProvider.fetchPosts();
     } catch (e) {
-      if (kDebugMode) {
-        print('Error fetching posts: $e');
-      }
       _showErrorDialog(context);
       return [];
     }

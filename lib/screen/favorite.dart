@@ -1,82 +1,47 @@
-import 'package:blog_posts/model/blog_model.dart';
+import 'package:blog_posts/provider/data_provider.dart';
 import 'package:flutter/material.dart';
-import 'package:sqflite/sqflite.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class FavoriteScreen extends StatefulWidget {
-  final Database database;
-
-  const FavoriteScreen({super.key, required this.database});
+class FavoriteScreen extends ConsumerStatefulWidget {
+  const FavoriteScreen({super.key});
 
   @override
-  State<FavoriteScreen> createState() => _FavoriteScreenState();
+  ConsumerState<FavoriteScreen> createState() => _FavoriteScreenState();
 }
 
-class _FavoriteScreenState extends State<FavoriteScreen> {
-  List<Post> _favoritePosts = [];
-
+class _FavoriteScreenState extends ConsumerState<FavoriteScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchFavorites();
-  }
-
-  Future<void> _fetchFavorites() async {
-    final List<Map<String, dynamic>> favorites =
-        await widget.database.query('favorites');
-    setState(() {
-      _favoritePosts = favorites
-          .map((fav) => Post(
-                id: fav['id'],
-                title: fav['title'],
-                body: fav['body'],
-              ))
-          .toList();
-    });
-  }
-
-  Future<void> _removeFromFavorites(int index) async {
-    final post = _favoritePosts[index];
-    await widget.database
-        .delete('favorites', where: 'id = ?', whereArgs: [post.id]);
-    setState(() {
-      _favoritePosts.removeAt(index);
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Blog removed'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+    final blogViewModel = ref.read(blogViewModelProvider);
+    blogViewModel.fetchFavorites();
   }
 
   @override
   Widget build(BuildContext context) {
+    final blogViewModel = ref.watch(blogViewModelProvider);
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Favorite List'),
+        centerTitle: true,
+        title: const Text('Favorite Posts'),
       ),
-      body: _favoritePosts.isEmpty
-          ? Center(
-              child: Text(
-                'No favorite posts yet.',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-            )
+      body: blogViewModel.favoritePosts.isEmpty
+          ? const Center(child: Text('No favorite posts yet.'))
           : ListView.builder(
-              itemCount: _favoritePosts.length,
+              itemCount: blogViewModel.favoritePosts.length,
               itemBuilder: (context, index) {
+                final post = blogViewModel.favoritePosts[index];
                 return Container(
                   padding: const EdgeInsets.all(16),
                   margin: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     border: Border.all(),
-                    borderRadius: const BorderRadius.all(
-                      Radius.circular(12),
-                    ),
+                    borderRadius: const BorderRadius.all(Radius.circular(12)),
                   ),
                   child: ListTile(
                     title: Text(
-                      _favoritePosts[index].title,
+                      post.title,
                       textAlign: TextAlign.justify,
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
@@ -84,18 +49,22 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
                       ),
                     ),
                     subtitle: Text(
-                      _favoritePosts[index].body,
+                      post.body,
                       textAlign: TextAlign.justify,
-                      style: const TextStyle(
-                        fontSize: 14,
-                      ),
+                      style: const TextStyle(fontSize: 14),
                     ),
                     trailing: IconButton(
                       onPressed: () {
-                        _removeFromFavorites(index);
+                        blogViewModel.toggleFavorite(post);
                       },
-                      icon: const Icon(Icons.delete),
-                      color: Colors.red,
+                      icon: Icon(
+                        blogViewModel.favoritePosts.contains(post)
+                            ? Icons.delete
+                            : Icons.favorite_border,
+                        color: blogViewModel.favoritePosts.contains(post)
+                            ? Colors.red
+                            : null,
+                      ),
                     ),
                   ),
                 );
