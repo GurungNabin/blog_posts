@@ -2,16 +2,16 @@ import 'package:blog_posts/model/blog_model.dart';
 import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
 
-class FavoriteList extends StatefulWidget {
+class FavoriteScreen extends StatefulWidget {
   final Database database;
 
-  const FavoriteList({super.key, required this.database});
+  const FavoriteScreen({super.key, required this.database});
 
   @override
-  State<FavoriteList> createState() => _FavoriteListState();
+  State<FavoriteScreen> createState() => _FavoriteScreenState();
 }
 
-class _FavoriteListState extends State<FavoriteList> {
+class _FavoriteScreenState extends State<FavoriteScreen> {
   List<Post> _favoritePosts = [];
 
   @override

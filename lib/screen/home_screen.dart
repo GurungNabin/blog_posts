@@ -5,14 +5,14 @@ import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
-class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomeScreenState extends State<HomeScreen> {
   final FetchPosts _fetchPostsInstance = FetchPosts();
   late Database _database;
   final TextEditingController _searchController = TextEditingController();
@@ -106,7 +106,7 @@ class _HomePageState extends State<HomePage> {
                   await Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => FavoriteList(
+                      builder: (context) => FavoriteScreen(
                         database: _database,
                       ),
                     ),
